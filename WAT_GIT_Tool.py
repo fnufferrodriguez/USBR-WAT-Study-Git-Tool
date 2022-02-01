@@ -74,17 +74,17 @@ def quitScript():
     time.sleep(2)
     sys.exit()
 
-def getNewWatershed(git_url=None, repo=None):
+def getNewWatershed(git_url=None, repo_dir=None):
     if git_url == None:
         print('\nPlease enter the URL for the wanted GIT Repo to clone.')
         git_url = input('GIT URL: ')
-    if repo == None:
+    if repo_dir == None:
         print('\nPlease enter the local directory to clone Repo to.')
         repo_dir = input('Directory: ')
     print('\nUser has selected:')
-    print('GIT URL:', default_URL)
+    print('GIT URL:', git_url)
     print('Directory:', repo_dir)
-    options = {'Y': {'text': 'Confirm Download', 'function': 'gitClone(default_URL, repo_dir)'},
+    options = {'Y': {'text': 'Confirm Download', 'function': 'gitClone(git_url, repo_dir)'},
                'N': {'text': 'Change Settings', 'function': 'getNewWatershed()'},
                'Cancel': {'text': 'Return to Selection Screen', 'function': 'selectionScreen()'}}
     presentOptions(options)
@@ -125,7 +125,7 @@ def checkDestinationDirectory(repo_dir):
     except Exception as e:
         print(e)
         print('')
-        False
+        return False
 
 def askForLocalRepo():
     print('\nEnter Watershed Directory')
