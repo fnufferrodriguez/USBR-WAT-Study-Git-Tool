@@ -17,7 +17,7 @@ import time
 import os, sys
 import traceback
 
-default_URL = r'http://gitlab.rmanet.com/RMA/usbr-water-quality/wtmp-development-study/uppersac.git' #default
+default_URL = r'https://gitlab.rmanet.app/RMA/usbr-water-quality/wtmp-development-study/uppersac.git' #default
 
 def welcomeScreen():
     print('\n##############################')
