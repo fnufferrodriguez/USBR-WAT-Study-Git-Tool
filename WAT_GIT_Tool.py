@@ -159,9 +159,9 @@ def downloadWatershedChanges():
 def gitReset(gitRepo):
     repo = connect2GITRepo(gitRepo)
     print('\nStarting Copy from GIT..')
+
+    repo.git.reset('--hard')
     repo.git.pull()
-    response = repo.git.reset('--hard')
-    printGitReponse(response)
 
 def printGitReponse(response):
     print('\nGIT CONSOLE: {0}'.format(response))
