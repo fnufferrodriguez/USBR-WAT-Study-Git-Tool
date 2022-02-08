@@ -16,6 +16,7 @@ import git
 import time
 import os, sys
 import traceback
+import shutil
 
 default_URL = r'https://gitlab.rmanet.app/RMA/usbr-water-quality/wtmp-development-study/uppersac.git' #default
 
@@ -39,7 +40,7 @@ def selectionScreen():
 
 def checkCorrectAnswer(response, options, message):
     while response.lower() not in [n.lower() for n in options.keys()]:
-        print('\nInvalid Response.\n')
+        print('\nInvalid Response.')
         exec(message)
         response = getUserResponse()
     frmt_response = [n for n in options.keys() if n.lower() == response.lower()][0]
@@ -77,10 +78,10 @@ def quitScript():
 def getNewWatershed(git_url=None, repo_dir=None):
     if git_url == None:
         print('\nPlease enter the URL for the wanted GIT Repo to clone.')
-        git_url = input('GIT URL: ')
+        git_url = input('GIT URL: ').strip()
     if repo_dir == None:
         print('\nPlease enter the local directory to clone Repo to.')
-        repo_dir = input('Directory: ')
+        repo_dir = input('Directory: ').strip()
     print('\nUser has selected:')
     print('GIT URL:', git_url)
     print('Directory:', repo_dir)
@@ -99,9 +100,10 @@ def gitClone(git_url, repo_dir):
     if not localcheck:
         confirmContinue(funct='getNewWatershed(git_url=git_url)', git_url=git_url)
     try:
-        print('\nStarting GIT Clone..')
+        print('\nStarting GIT Clone...')
         response = git.Repo.clone_from(git_url, repo_dir)
         printGitReponse(response)
+        print('GIT Clone Complete!')
     except git.exc.GitError:
         print(traceback.format_exc())
         print('\nError cloning Git Repo at {0} to {1}'.format(git_url, repo_dir))
@@ -136,6 +138,7 @@ def connect2GITRepo(repo_path):
     try:
         repo = git.Repo(repo_path)
         print('\nConnected to GIT Repo!')
+        os.chdir(repo_path)
         return repo
     except git.exc.GitError:
         print('\nInvalid GIT Repo directory: {0}'.format(repo_path))
@@ -161,7 +164,10 @@ def gitReset(gitRepo):
     print('\nStarting Copy from GIT..')
 
     repo.git.reset('--hard')
+    # repo.git.clean('-d', '-fx')
     repo.git.pull()
+    print('GIT Download Complete!')
+
 
 def printGitReponse(response):
     print('\nGIT CONSOLE: {0}'.format(response))
@@ -178,12 +184,15 @@ def uploadWatershedChanges():
 def gitPush(gitRepo):
     committext = getCommitText()
     repo = connect2GITRepo(gitRepo)
+    confirmUpToDate(repo)
     # repo.git.add(update=True)
-    print('\nStarting Upload to GIT..')
+    print('\nStarting Upload to GIT...')
     repo.git.add('--all')
     repo.index.commit(committext)
     response = repo.remotes.origin.push()
+    # response = repo.git.push()
     printGitReponse(response)
+    print('GIT Upload Complete!')
 
 def getCommitText():
     print('\nEnter Commit message:')
@@ -210,6 +219,76 @@ def confirmContinue(funct, **kwargs):
     response = getUserResponse()
     response = checkCorrectAnswer(response, options, 'presentOptions(options)')
     exec(options[response]['function'])
+
+def confirmUpToDate(repo):
+    print('\nChecking GIT status...')
+    repo.git.fetch()
+    status = repo.git.status()
+    status = status.split('\n')
+    if status[1].startswith('Your branch is up to date'):
+        print('\nGIT branch up to date...')
+        return
+    else:
+        print('\nGIT Repo Out of Date...')
+        differentFiles = getDifferentFiles(repo)
+        displayOutOfDateFiles(differentFiles)
+        print('\nUser cannot upload until local Repo is up to date with Remote.')
+        print('This will remove any changes done by the user.')
+        options = {'Y': {'text': 'Backup Changed Files', 'function': 'backupChangedFiles(differentFiles)'},
+                   'N': {'text': 'Cancel function', 'function': 'selectionScreen()'}}
+        print('\nBack up user changes to Git_Backup folder? (Y/N)')
+        response = getUserResponse()
+        response = checkCorrectAnswer(response, options, 'presentOptions(options)')
+        exec(options[response]['function'])
+
+def getDifferentFiles(repo):
+    # ischanged = repo.is_dirty(untracked_files=True)
+    untracked = repo.untracked_files
+    changedFiles = [item.a_path for item in repo.index.diff(None)]
+    changedTracked = [n for n in changedFiles if n not in untracked]
+    # changedTrackedexists = [n for n in changedTracked if os.path.exists(os.path.join(repopath, n))]
+    # removedTracked = [n for n in changedTracked if not os.path.exists(os.path.join(repopath, n))]
+    return changedTracked
+
+def displayOutOfDateFiles(differentFiles):
+    print('\nThe following files are out of date:')
+    for i, n in enumerate(differentFiles):
+        if i == 0:
+            print('\t{0}'.format(n))
+        else:
+            print('\n\t{0}'.format(n))
+
+def backupChangedFiles(differentFiles):
+    if not os.path.exists('GIT_Backup'):
+        os.mkdir('GIT_Backup')
+    else:
+        dirlist = os.listdir('GIT_Backup')
+        if len(dirlist) != 0:
+            print('\nClearing {0}...'.format(os.path.join(os.getcwd(), 'GIT_Backup')))
+            for filename in dirlist:
+                curfile = os.path.join('GIT_Backup', filename)
+                if os.path.isdir(curfile): #check if directory..
+                    shutil.rmtree(curfile)
+                else:
+                    os.remove(curfile)
+
+    for filename in differentFiles:
+        try:
+            shutil.copyfile(filename, os.path.join('GIT_Backup', filename))
+        except FileNotFoundError:
+            os.makedirs(os.path.split(os.path.join('GIT_Backup', filename))[0])
+            shutil.copyfile(filename, os.path.join('GIT_Backup', filename))
+
+    print('\nBackup Complete. Changed Files now in GIT_Backup')
+    options = {'Y': {'text': 'Download Watershed changes from GIT', 'function': 'downloadWatershedChanges()'},
+               'N': {'text': 'Cancel function', 'function': 'selectionScreen()'}}
+    print('Download latest from GIT and overwrite local files? (Y/N)')
+    response = getUserResponse()
+    response = checkCorrectAnswer(response, options, 'presentOptions(options)')
+    exec(options[response]['function'])
+    selectionScreen()
+
+
 
 if __name__ == "__main__":
     welcomeScreen()
