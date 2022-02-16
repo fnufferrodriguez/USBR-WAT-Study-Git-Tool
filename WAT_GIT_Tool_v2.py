@@ -111,7 +111,7 @@ def gitDownload(options):
     if '--donothing' not in opts:
         repo = connect2GITRepo(folder)
         changedFiles = getChangedFiles(repo)
-        repoChangedFiles = compareHexSha(repo)
+        repoChangedFiles = compareFiles(repo)
         repo.git.reset('--hard')
         repo.git.pull()
         print_to_stdout('Download complete.')
@@ -170,24 +170,83 @@ def gitFetch(options):
 
     repo = connect2GITRepo(folder)
 
-    changedFiles = compareHexSha(repo)
+    print_to_stdout("Made it to Fetch")
 
-    if len(changedFiles) > 0:
-        printChangedFiles(changedFiles, message='Pending Changes:')
-    else:
-        print_to_stdout('\nNo files changed.')
+    repo.git.fetch()
+    sys.exit(0)
+
+def gitCompare(options):
+    opts = []
+    for opt in options:
+        opts.append(opt[0])
+    if "--folder" not in opts:
+        print_to_stdout("--folder not included in clone.")
+        print_to_stdout("now exiting..")
+        sys.exit(1)
+
+    for opt in options:
+        if opt[0] == '--folder':
+            folder = opt[1]
+        elif opt[0] == '--compare-to-remote':
+            comparisonType = opt[1]
+    
+    repo = connect2GITRepo(folder)
+
+    if comparisonType.lower() == 'files':
+        changedFiles = compareFiles(repo)
+
+        if len(changedFiles) > 0:
+            printChangedFiles(changedFiles, message='Pending Files:')
+        else:
+            print_to_stdout('\nNo files changed.')
+    elif comparisonType.lower() == 'commits':
+        differentCommits = compareCommits(repo)
+
+        if len(differentCommits) > 0:
+            print_to_stdout('Pending Commits:')
+            for commit in differentCommits:
+                print_to_stdout('\t'+commit)
+        else:
+            print_to_stdout("\nNo new commits.")
 
     sys.exit(0)
 
-def compareHexSha(repo):
-    repo.git.fetch()
+def compareCommits(repo):
+    remoteBranch = getCurrentBranchRemote(repo)
+    if remoteBranch is None:
+        print_to_stdout("\nBranch does not track a remote. Compare not possible.")
+        sys.exit(2)
+
     current_hex = repo.head.object.hexsha
-    repohex = repo.git.log('origin','--pretty=%H').split('\n')[0]
+    repohex = repo.git.log(remoteBranch,'--pretty=%H').split('\n')[0]
+    if current_hex == repohex:
+        return []
+    else:
+        commits = repo.git.log(current_hex+'...'+repohex, '--oneline').split('\n')
+        return commits
+
+def compareFiles(repo):
+    remoteBranch = getCurrentBranchRemote(repo)
+    if remoteBranch is None:
+        print_to_stdout("\nBranch does not track a remote. Compare not possible.")
+        sys.exit(2)
+
+    current_hex = repo.head.object.hexsha
+    repohex = repo.git.log(remoteBranch,'--pretty=%H').split('\n')[0]
     if current_hex == repohex:
         return []
     else:
         changedFiles = repo.git.diff(current_hex, repohex, '--name-only').split('\n')
         return changedFiles
+
+def getCurrentBranchRemote(repo):
+    branchStatus = repo.git.status('-s','-b')
+    if '...' not in branchStatus:
+        return None
+
+    remoteBranchEndPart = branchStatus.split('...')[1]
+    remoteBranch = remoteBranchEndPart.split('[')[0].strip()
+    return remoteBranch
 
 # def getRepoChangedFiles(repo):
 #     changedRemote = repo.git.show('HEAD', pretty="", name_only=True).split('\n')
@@ -263,7 +322,8 @@ def parseCommands():
     argv = sys.argv[1:]
     shortops = "cud"
     longopts = ["clone", "upload", "download", "changes", "fetch", "folder=",
-                "comments=", "commentsfile=", "remote=", "donothing"]
+                "comments=", "commentsfile=", "remote=", "donothing",
+                "compare-to-remote="]
     try:
         options, remainder = getopt.getopt(argv, shortops, longopts)
     except:
@@ -284,6 +344,8 @@ def parseCommands():
             gitChanges(options)
         elif opt in ['--fetch']:
             gitFetch(options)
+        elif opt in ['--compare-to-remote']:
+            gitCompare(options)
 
 if __name__ == "__main__":
     parseCommands()
