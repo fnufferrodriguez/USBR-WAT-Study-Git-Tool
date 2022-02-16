@@ -170,10 +170,7 @@ def gitFetch(options):
 
     repo = connect2GITRepo(folder)
 
-    print_to_stdout("Made it to Fetch")
-
     repo.git.fetch()
-    sys.exit(0)
 
 def gitCompare(options):
     opts = []
@@ -247,10 +244,6 @@ def getCurrentBranchRemote(repo):
     remoteBranchEndPart = branchStatus.split('...')[1]
     remoteBranch = remoteBranchEndPart.split('[')[0].strip()
     return remoteBranch
-
-# def getRepoChangedFiles(repo):
-#     changedRemote = repo.git.show('HEAD', pretty="", name_only=True).split('\n')
-#     return changedRemote
 
 def getChangedFiles(repo):
     untracked = repo.untracked_files
