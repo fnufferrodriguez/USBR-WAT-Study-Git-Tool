@@ -215,7 +215,7 @@ def compareCommits(repo):
         sys.exit(2)
 
     current_branch = repo.active_branch.name
-    commits = repo.git.log(current_branch+'...'+remoteBranch, '--oneline').strip()
+    commits = repo.git.log('--oneline', current_branch+'...'+remoteBranch).strip()
     if commits != '':
         return commits.split('\n')
     return []
@@ -227,7 +227,7 @@ def compareFiles(repo):
         sys.exit(2)
 
     current_branch = repo.active_branch.name
-    changedFiles = repo.git.diff(current_branch, remoteBranch, '--name-only').strip()
+    changedFiles = repo.git.diff('--name-only', current_branch, remoteBranch).strip()
     if changedFiles != '':
         return changedFiles.split('\n')
     return []
