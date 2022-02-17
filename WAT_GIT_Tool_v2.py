@@ -241,8 +241,9 @@ def getCurrentBranchRemote(repo):
     if '...' not in branchStatus:
         return None
 
-    remoteBranchEndPart = branchStatus.split('...')[1]
-    remoteBranch = remoteBranchEndPart.split('[')[0].strip()
+    remoteBranch = branchStatus.split('...')[1]
+    if '[' in remoteBranch:
+        remoteBranch = remoteBranch.split('[')[0].strip()
     return remoteBranch
 
 def getChangedFiles(repo):
