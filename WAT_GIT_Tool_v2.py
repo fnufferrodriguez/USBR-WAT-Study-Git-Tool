@@ -215,7 +215,7 @@ def compareCommits(repo):
         sys.exit(2)
 
     current_hex = repo.head.object.hexsha
-    repohex = repo.git.log(remoteBranch,'--pretty=%H').split('\n')[0]
+    repohex = repo.git.log('--pretty=%H', remoteBranch).split('\n')[0]
     if current_hex == repohex:
         return []
     else:
@@ -229,7 +229,7 @@ def compareFiles(repo):
         sys.exit(2)
 
     current_hex = repo.head.object.hexsha
-    repohex = repo.git.log(remoteBranch,'--pretty=%H').split('\n')[0]
+    repohex = repo.git.log('--pretty=%H', remoteBranch).split('\n')[0]
     if current_hex == repohex:
         return []
     else:
