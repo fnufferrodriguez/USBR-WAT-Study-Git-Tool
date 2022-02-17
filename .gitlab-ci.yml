@@ -1,0 +1,19 @@
+image: peso.rmanet.com:4567/rma/devops/pyinstaller-docker
+
+stages:
+  - build
+
+build-python-code:
+  image: peso.rmanet.com:4567/rma/devops/pyinstaller-docker
+  stage: build
+  variables:
+    GIT_SUBMODULE_STRATEGY: normal
+  tags:
+    - docker
+  artifacts:
+    paths:
+    - "dist/**"
+  script:
+    - pip install -r requirements.txt
+    - pyinstaller WAT_GIT_Tool.py
+    - pyinstaller WAT_GIT_Tool_v2.py
