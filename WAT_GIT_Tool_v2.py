@@ -88,6 +88,9 @@ def gitUpload(options):
                 if submodule.name not in options['--submodule']:
                     options['--submodule'].append(submodule.name)
 
+        if not any(x in options.keys() for x in ['--all', '--main', '--submodule']):
+            options['--main'] = ''
+
         if '--main' in options.keys():
             changedFiles = getChangedFiles(repo)
             repo.git.add('--all')
@@ -151,6 +154,9 @@ def gitDownload(options):
                 if submodule.name not in options['--submodule']:
                     options['--submodule'].append(submodule.name)
 
+        if not any(x in options.keys() for x in ['--all', '--main', '--submodule']):
+            options['--main'] = ''
+
         if '--main' in options.keys():
             gitCompare(options, repo=repo, exit=False)
             changedlocals = getChangedFiles(repo)
@@ -208,6 +214,9 @@ def gitChanges(options):
                 if submodule.name not in options['--submodule']:
                     options['--submodule'].append(submodule.name)
 
+        if not any(x in options.keys() for x in ['--all', '--main', '--submodule']):
+            options['--main'] = ''
+
         changed_file_list = []
         if '--main' in options.keys():
             changedTracked = getChangedFiles(repo)
@@ -251,6 +260,9 @@ def gitFetch(options):
     print_to_stdout('USER HAS SELECTED:')
     print_to_stdout('folder:', folder)
 
+    if not any(x in options.keys() for x in ['--all', '--main', '--submodule']):
+        options['--main'] = ''
+
     if '--donothing' in options.keys():
         print_to_stdout("Do nothing mode engaged.")
     elif '--all' in options.keys():
@@ -275,7 +287,7 @@ def gitCompare(options, comparisonType='files', repo=None, exit=True):
     opts = list(options.keys())
 
     if "--folder" not in opts:
-        print_to_stdout("--folder not included in clone.")
+        print_to_stdout("--folder not included in options.")
         print_to_stdout("now exiting..")
         sys.exit(1)
 
@@ -296,6 +308,9 @@ def gitCompare(options, comparisonType='files', repo=None, exit=True):
         for submodule in repo.submodules:
             if submodule.name not in options['--submodule']:
                 options['--submodule'].append(submodule.name)
+
+    if not any(x in options.keys() for x in ['--all', '--main', '--submodule']):
+        options['--main'] = ''
 
     all_changed_files = []
     all_changed_commits = []
@@ -344,9 +359,31 @@ def gitCompare(options, comparisonType='files', repo=None, exit=True):
     if exit:
         sys.exit(0)
 
+def gitListSubmodules(options):
+    opts = list(options.keys())
+
+    if "--folder" not in opts:
+        print_to_stdout("--folder not included in options.")
+        print_to_stdout("now exiting..")
+        sys.exit(1)
+
+    for opt in opts:
+        if opt == '--folder':
+            folder = options[opt]
+
+    repo = connect2GITRepo(folder)
+    submodules = repo.submodules
+    if len(submodules) == 0:
+        print_to_stdout('\nNo Submodules detected.')
+    else:
+        print_to_stdout('\nSubmodules in main repo:')
+        for submodule in submodules:
+            print_to_stdout(submodule.name)
+
+    sys.exit(0)
+
 def compareCommits(repo):
     remoteBranch = getCurrentBranchRemote(repo)
-    print('Main Branch')
     if remoteBranch is None:
         print_to_stdout("\nBranch does not track a remote. Compare not possible.")
         sys.exit(2)
@@ -452,7 +489,7 @@ def print_to_stdout(*a):
 def parseCommands():
     argv = sys.argv[1:]
     shortops = "cud"
-    longopts = ["clone", "upload", "download", "changes", "fetch", "compare-to-remote=", #main commands
+    longopts = ["clone", "upload", "download", "changes", "fetch", "compare-to-remote=", 'listsubmodules', #main commands
                 "folder=", "comments=", "commentsfile=", "remote=", "donothing", "all", "main",
                 "submodule="]
     try:
@@ -486,6 +523,8 @@ def parseCommands():
             gitFetch(options_frmt)
         elif opt in ['--compare-to-remote']:
             gitCompare(options_frmt)
+        elif opt in ['--listsubmodules']:
+            gitListSubmodules(options_frmt)
 
 if __name__ == "__main__":
     parseCommands()
