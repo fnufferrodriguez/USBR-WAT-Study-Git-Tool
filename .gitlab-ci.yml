@@ -2,6 +2,7 @@ image: peso.rmanet.com:4567/rma/devops/pyinstaller-docker
 
 stages:
   - build
+  - deploy
 
 build-python-code:
   image: peso.rmanet.com:4567/rma/devops/pyinstaller-docker
@@ -17,3 +18,16 @@ build-python-code:
     - pip install -r requirements.txt
     - pyinstaller --onefile WAT_GIT_Tool.py
     - pyinstaller --onefile WAT_GIT_Tool_v2.py
+
+deploy-python-code:
+  image: peso.rmanet.com:4567/rma/devops/docker-java-build-image:jdk-8
+  stage: deploy
+  script:
+  - mvn deploy
+  dependencies:
+  - build-python-code
+  tags:
+    - docker
+  only:
+    refs:
+      - master
