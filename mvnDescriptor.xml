@@ -1,0 +1,15 @@
+<assembly>
+<formats>
+    <format>zip</format>
+</formats>
+
+<fileSets>
+    <fileSet>
+        <directory>dist</directory>
+        <includes>
+            <include>WAT_GIT_Tool_v2.exe</include>
+        </includes>
+        <outputDirectory>.</outputDirectory>
+    </fileSet>
+</fileSets>
+</assembly>
