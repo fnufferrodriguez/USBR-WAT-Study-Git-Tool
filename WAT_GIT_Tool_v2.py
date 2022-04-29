@@ -40,6 +40,11 @@ def gitClone(options):
         try:
             response = git.Repo.clone_from(remote, folder, multi_options=['--recurse-submodule'])
             print_to_stdout('Clone complete.')
+            repo = connect2GITRepo(folder)
+            for submodule in repo.submodules:
+                repo_submod = submodule.module()
+                repo_submod.git.checkout('main')
+
         except git.exc.GitError:
             print_to_stdout(traceback.format_exc())
             sys.exit(1)
@@ -180,7 +185,6 @@ def gitDownload(options):
     else:
         print_to_stdout('Do nothing mode engaged.')
 
-    # sys.exit(0)
 
 def gitChanges(options):
 
@@ -230,14 +234,12 @@ def gitChanges(options):
                     for cfile in changedTracked:
                         changed_file_list.append('{0}/{1}'.format(submodule.path, cfile))
 
-        if len(changedTracked) > 0:
+        if len(changed_file_list) > 0:
             printChangedFiles(changed_file_list)
         else:
             print_to_stdout('\nNo tracked files changed.')
     else:
         print_to_stdout("Do nothing mode engaged.")
-
-    # sys.exit(0)
 
 def gitFetch(options):
 
@@ -276,7 +278,7 @@ def gitFetch(options):
                 if submodule.name in options['--submodule']:
                     repo_submod = submodule.module()
                     repo_submod.git.fetch()
-    # sys.exit(1)
+
 
 def gitCompare(options, comparisonType='files', repo=None):
 
