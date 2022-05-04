@@ -173,7 +173,8 @@ def gitDownload(options):
                 if submodule.name in options['--submodule']:
                     print_to_stdout('\nDownloading Submodule:', submodule.name)
                     repo_submod = submodule.module()
-                    gitCompare(options, repo=repo_submod)
+                    gitCompare(options, repo=repo, subrepo=submodule.name)
+                    # gitCompare(options, repo=repo)
                     changedlocals = getChangedFiles(repo_submod)
                     printChangedFiles(changedlocals, "The following files will be overwritten:")
                     try:
@@ -182,6 +183,14 @@ def gitDownload(options):
                         print_to_stdout('Download complete.')
                     except git.exc.GitCommandError:
                         print('Error pulling submodule {0}'.format(submodule))
+            if '--main' not in options.keys():
+                gitCompare(options, repo=repo)
+                changedlocals = getChangedFiles(repo)
+                printChangedFiles(changedlocals, "The following files will be overwritten:")
+                repo.git.reset('--hard')
+                repo.git.pull()
+                print_to_stdout('Download complete.')
+
     else:
         print_to_stdout('Do nothing mode engaged.')
 
@@ -280,7 +289,7 @@ def gitFetch(options):
                     repo_submod.git.fetch()
 
 
-def gitCompare(options, comparisonType='files', repo=None):
+def gitCompare(options, comparisonType='files', repo=None, subrepo=None):
 
     if "--folder" not in options.keys():
         print_to_stdout("--folder not included in options.")
@@ -293,17 +302,20 @@ def gitCompare(options, comparisonType='files', repo=None):
         elif opt == '--compare-to-remote':
             comparisonType = options[opt]
 
-    if repo == None:
+    if repo == None: #time saver
         repo = connect2GITRepo(folder)
 
     if '--all' in options.keys():
         if '--main' not in options.keys():
-            options.keys().append('--main')
+            options['--main'] = ''
         if '--submodule' not in options.keys():
             options['--submodule'] = []
         for submodule in repo.submodules:
-            if submodule.name not in options['--submodule']:
-                options['--submodule'].append(submodule.name)
+            if subrepo != None and submodule.name != subrepo:
+                continue
+            else:
+                if submodule.name not in options['--submodule']:
+                    options['--submodule'].append(submodule.name)
 
     if not any(x in options.keys() for x in ['--all', '--main', '--submodule']):
         options['--main'] = ''
@@ -326,6 +338,8 @@ def gitCompare(options, comparisonType='files', repo=None):
             if isinstance(options['--submodule'], str):
                 options['--submodule'] = [options['--submodule']]
             for submodule in repo.submodules:
+                if subrepo != None and submodule.name != subrepo:
+                    continue
                 if submodule.name in options['--submodule']:
                     repo_submod = submodule.module()
 
@@ -502,8 +516,11 @@ def parseCommands():
         if opt not in options_frmt.keys():
             options_frmt[opt] = arg
         else:
-            options_frmt[opt] = [options_frmt[opt]]
-            options_frmt[opt].append(arg)
+            if isinstance(options_frmt[opt], str):
+                options_frmt[opt] = [options_frmt[opt]]
+                options_frmt[opt].append(arg)
+            else:
+                options_frmt[opt].append(arg)
 
     for opt in options_frmt.keys():
         if opt in ['c', "--clone"]:
