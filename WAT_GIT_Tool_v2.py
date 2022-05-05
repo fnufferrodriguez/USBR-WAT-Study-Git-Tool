@@ -183,13 +183,13 @@ def gitDownload(options):
                         print_to_stdout('Download complete.')
                     except git.exc.GitCommandError:
                         print('Error pulling submodule {0}'.format(submodule))
-            if '--main' not in options.keys():
-                gitCompare(options, repo=repo)
-                changedlocals = getChangedFiles(repo)
-                printChangedFiles(changedlocals, "The following files will be overwritten:")
-                repo.git.reset('--hard')
-                repo.git.pull()
-                print_to_stdout('Download complete.')
+            # if '--main' not in options.keys():
+            #     gitCompare(options, repo=repo)
+            #     changedlocals = getChangedFiles(repo)
+            #     printChangedFiles(changedlocals, "The following files will be overwritten:")
+            #     repo.git.reset('--hard')
+            #     repo.git.pull()
+            #     print_to_stdout('Download complete.')
 
     else:
         print_to_stdout('Do nothing mode engaged.')
