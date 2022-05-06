@@ -94,13 +94,6 @@ def gitUpload(options):
         if not any(x in options.keys() for x in ['--all', '--main', '--submodule']):
             options['--main'] = ''
 
-        if '--main' in options.keys():
-            changedFiles = getChangedFiles(repo)
-            repo.git.add('--all')
-            repo.index.commit(comments)
-            response = repo.remotes.origin.push()
-            printChangedFiles(changedFiles)
-
         if '--submodule' in options.keys():
             if isinstance(options['--submodule'], str):
                 options['--submodule'] = [options['--submodule']]
@@ -114,10 +107,23 @@ def gitUpload(options):
                     repo.git.add(submodule.path)
                     printChangedFiles(changedFiles)
 
+        if '--main' in options.keys():
+            changedFiles = getChangedFiles(repo)
+            repo.git.add('--all')
+            # repo.index.commit(comments)
+            # response = repo.remotes.origin.push()
+            printChangedFiles(changedFiles)
+
         if '--main' in options.keys() or '--submodule' in options.keys():
             # repo.git.add("--all")
             repo.index.commit(comments)
-            response = repo.remotes.origin.push(recurse_submodules="on-demand")
+            try:
+                response = repo.remotes.origin.push(recurse_submodules="on-demand")
+            except git.exc.GitCommandError as e:
+                if e.stderr.split('\n')[-1] == "fatal: failed to push all needed submodules'":
+                    print_to_stdout(e.stderr)
+                    print_to_stdout('Failed commit upload.')
+                    sys.exit(1)
             print_to_stdout('Upload complete.')
         else:
             print_to_stdout("No upload target submitted.")
@@ -328,11 +334,13 @@ def gitCompare(options, comparisonType='files', repo=None, subrepo=None):
         if '--main' in options.keys():
             if comparisonType.lower() == 'files':
                 changedFiles = compareFiles(repo)
-                all_changed_files += changedFiles
+                for file in changedFiles:
+                    all_changed_files.append('Study/{0}'.format(file))
 
             elif comparisonType.lower() == 'commits':
                 differentCommits = compareCommits(repo)
-                all_changed_commits += differentCommits
+                for commit in differentCommits:
+                    all_changed_commits.append('Study: {1}'.format(submodule, commit))
 
         if '--submodule' in options.keys():
             if isinstance(options['--submodule'], str):
