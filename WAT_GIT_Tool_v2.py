@@ -20,8 +20,7 @@ import traceback
 def gitClone(options):
     default_URL = r'https://gitlab.rmanet.app/RMA/usbr-water-quality/UpperSac-Submodules/uppersac.git' #default
     if "--folder" not in options.keys():
-        print_to_stdout("--folder not included in input.")
-        print_to_stdout("now exiting..")
+        print_to_stdout("\nERROR: --folder not included in input.")
         sys.exit(1)
     print_to_stdout("Made it to clone")
     remote = default_URL
@@ -46,6 +45,7 @@ def gitClone(options):
                 repo_submod.git.checkout('main')
 
         except git.exc.GitError:
+            print_to_stdout("\nERROR:")
             print_to_stdout(traceback.format_exc())
             sys.exit(1)
 
@@ -57,12 +57,10 @@ def gitClone(options):
 def gitUpload(options):
 
     if "--folder" not in options.keys():
-        print_to_stdout("--folder not included in clone.")
-        print_to_stdout("now exiting..")
+        print_to_stdout("\nERROR: --folder not included in clone.")
         sys.exit(1)
     if '--comments' not in options.keys() and '--commentsfile' not in options.keys():
-        print_to_stdout("--comments or --commentsfile not included in input.")
-        print_to_stdout("now exiting..")
+        print_to_stdout("\nERROR: --comments or --commentsfile not included in input.")
         sys.exit(1)
     print_to_stdout("Made it to upload")
 
@@ -122,7 +120,7 @@ def gitUpload(options):
             except git.exc.GitCommandError as e:
                 if e.stderr.split('\n')[-1] == "fatal: failed to push all needed submodules'":
                     print_to_stdout(e.stderr)
-                    print_to_stdout('Failed commit upload.')
+                    print_to_stdout('\nERROR: Failed commit upload.')
                     sys.exit(1)
             print_to_stdout('Upload complete.')
         else:
@@ -137,8 +135,7 @@ def gitUpload(options):
 def gitDownload(options):
 
     if "--folder" not in options.keys():
-        print_to_stdout("--folder not included in clone.")
-        print_to_stdout("now exiting..")
+        print_to_stdout("\nERROR: --folder not included in clone.")
         sys.exit(1)
 
     print_to_stdout("Made it to download")
@@ -188,7 +185,7 @@ def gitDownload(options):
                         repo_submod.git.pull()
                         print_to_stdout('Download complete.')
                     except git.exc.GitCommandError:
-                        print('Error pulling submodule {0}'.format(submodule))
+                        print_to_stdout('Error pulling submodule {0}'.format(submodule))
             # if '--main' not in options.keys():
             #     gitCompare(options, repo=repo)
             #     changedlocals = getChangedFiles(repo)
@@ -204,8 +201,7 @@ def gitDownload(options):
 def gitChanges(options):
 
     if "--folder" not in options.keys():
-        print_to_stdout("--folder not included in clone.")
-        print_to_stdout("now exiting..")
+        print_to_stdout("\nERROR: --folder not included in clone.")
         sys.exit(1)
 
     print_to_stdout("Made it to Changes")
@@ -259,8 +255,7 @@ def gitChanges(options):
 def gitFetch(options):
 
     if "--folder" not in options.keys():
-        print_to_stdout("--folder not included in clone.")
-        print_to_stdout("now exiting..")
+        print_to_stdout("\nERROR: --folder not included in clone.")
         sys.exit(1)
 
     print_to_stdout("Made it to Fetch")
@@ -295,11 +290,10 @@ def gitFetch(options):
                     repo_submod.git.fetch()
 
 
-def gitCompare(options, comparisonType='files', repo=None, subrepo=None):
+def gitCompare(options, comparisonType='files', repo=None, subrepo=None, returnlist=False):
 
     if "--folder" not in options.keys():
-        print_to_stdout("--folder not included in options.")
-        print_to_stdout("now exiting..")
+        print_to_stdout("\nERROR: --folder not included in options.")
         sys.exit(1)
 
     for opt in options.keys():
@@ -340,7 +334,7 @@ def gitCompare(options, comparisonType='files', repo=None, subrepo=None):
             elif comparisonType.lower() == 'commits':
                 differentCommits = compareCommits(repo)
                 for commit in differentCommits:
-                    all_changed_commits.append('Study: {1}'.format(submodule, commit))
+                    all_changed_commits.append('Study: {0}'.format(commit))
 
         if '--submodule' in options.keys():
             if isinstance(options['--submodule'], str):
@@ -371,8 +365,12 @@ def gitCompare(options, comparisonType='files', repo=None, subrepo=None):
                 printChangedFiles(all_changed_commits, message='Pending Commits:')
             else:
                 print_to_stdout('\nNo new commits.')
+        if returnlist:
+            return all_changed_commits
     else:
         print_to_stdout("Do nothing mode engaged.")
+        if returnlist:
+            return []
 
     # if exit:
     #     sys.exit(0)
@@ -380,8 +378,7 @@ def gitCompare(options, comparisonType='files', repo=None, subrepo=None):
 def gitListSubmodules(options):
 
     if "--folder" not in options.keys():
-        print_to_stdout("--folder not included in options.")
-        print_to_stdout("now exiting..")
+        print_to_stdout("\nERROR: -folder not included in options.")
         sys.exit(1)
 
     for opt in options.keys():
@@ -399,6 +396,103 @@ def gitListSubmodules(options):
 
     # sys.exit(0)
 
+def gitCheckPushability(options):
+
+    if "--folder" not in options.keys():
+        print_to_stdout("\nERROR: --folder not included in options.")
+        sys.exit(1)
+
+    for opt in options.keys():
+        if opt == '--folder':
+            folder = options[opt]
+
+    if not os.path.exists(folder):
+        print_to_stdout(f'\nERROR: Specified Git folder {folder} does not exist.')
+        sys.exit(1)
+
+    if '--donothing' not in options.keys():
+        repo = connect2GITRepo(folder)
+
+        if '--all' in options.keys():
+            if '--main' not in options.keys():
+                options['--main'] = ''
+            if '--submodule' not in options.keys():
+                options['--submodule'] = []
+            for submodule in repo.submodules:
+                if submodule.name not in options['--submodule']:
+                    options['--submodule'].append(submodule.name)
+
+        if not any(x in options.keys() for x in ['--all', '--main', '--submodule']):
+            options['--main'] = ''
+
+        stats = repo.git.status(porcelain=True).split() #really only for submodules...
+
+        if 'UU' in stats:
+            print_to_stdout('\nERROR: Conflicts found in the following:')
+            for ni, n in enumerate(stats):
+                if n == 'UU':
+                    print(f'\t{stats[ni+1]}')
+
+            sys.exit(1)
+
+        allpendingcommits = gitCompare(options, comparisonType='commits', repo=repo, returnlist=True)
+        if len(allpendingcommits) > 0:
+            print_to_stdout('\nERROR: Cannot push with pending commits.')
+            sys.exit(1)
+
+        print_to_stdout('\nOk to push!')
+
+#TODO: This
+
+# def resetDivergedBranch(options):
+#
+#     if "--folder" not in options.keys():
+#         print_to_stdout("--folder not included in options.")
+#         sys.exit(1)
+#
+#     for opt in options.keys():
+#         if opt == '--folder':
+#             folder = options[opt]
+#
+#     if '--donothing' not in options.keys():
+#         repo = connect2GITRepo(folder)
+#
+#         if '--all' in options.keys():
+#             if '--main' not in options.keys():
+#                 options['--main'] = ''
+#             if '--submodule' not in options.keys():
+#                 options['--submodule'] = []
+#             for submodule in repo.submodules:
+#                 if submodule.name not in options['--submodule']:
+#                     options['--submodule'].append(submodule.name)
+#
+#         if not any(x in options.keys() for x in ['--all', '--main', '--submodule']):
+#             options['--main'] = ''
+#
+#         if '--main' in options.keys():
+#             #git checkout main
+#             #git branch -D main
+#             #git switch -C main
+#             repo.git.merge('--abort')
+#             repo.git.checkout('origin/main')
+#             repo.git.branch('-D', 'main')
+#             repo.git.branch('main')
+#             repo.git.checkout('main')
+#
+#         if '--submodule' in options.keys():
+#             if isinstance(options['--submodule'], str):
+#                 options['--submodule'] = [options['--submodule']]
+#             for submodule in repo.submodules:
+#                 if submodule.name in options['--submodule']:
+#                     print_to_stdout('\nDownloading Submodule:', submodule.name)
+#                     repo_submod = submodule.module()
+#                     repo_submod.git.merge('--abort')
+#                     repo_submod.git.checkout('origin/main')
+#                     repo_submod.git.branch('-D', 'main')
+#                     repo_submod.git.branch('main')
+#                     repo_submod.git.checkout('main')
+
+
 def compareCommits(repo):
     remoteBranch = getCurrentBranchRemote(repo)
     if remoteBranch is None:
@@ -415,8 +509,8 @@ def compareCommits(repo):
 def compareFiles(repo):
     remoteBranch = getCurrentBranchRemote(repo)
     if remoteBranch is None:
-        print_to_stdout("\nBranch does not track a remote. Compare not possible.")
-        sys.exit(2)
+        print_to_stdout("\nERROR: Branch does not track a remote. Compare not possible.")
+        sys.exit(1)
 
     current_branch = repo.active_branch.name
     changedFiles = repo.git.diff('--name-only', current_branch, remoteBranch).strip()
@@ -469,7 +563,10 @@ def connect2GITRepo(repo_path):
         print_to_stdout('\nConnected to GIT Repo!')
         return repo
     except git.exc.GitError:
-        print_to_stdout('\nInvalid GIT Repo directory: {0}'.format(repo_path))
+        print_to_stdout('\nERROR: Invalid GIT Repo directory: {0}'.format(repo_path))
+        sys.exit(1)
+    else:
+        print_to_stdout(f'\nERROR: Unknown error connecting to GIT Repo directory: {repo_path}')
         sys.exit(1)
 
 def checkDestinationDirectory(repo_dir):
@@ -479,15 +576,15 @@ def checkDestinationDirectory(repo_dir):
             if len(dirlen) == 0:
                 return True
             else:
-                print_to_stdout('\nDestination directory {0} already exists.'.format(repo_dir))
+                print_to_stdout('\nERROR: Destination directory {0} already exists.'.format(repo_dir))
                 sys.exit(1)
         else:
             print_to_stdout('\nCreating Directory at {0}..'.format(repo_dir))
             os.makedirs(repo_dir)
             return True
-    except Exception as e:
-        print_to_stdout(e)
-        print_to_stdout('')
+    except:
+        print_to_stdout("\nERROR: ")
+        print_to_stdout(traceback.format_exc())
         sys.exit(1)
 
 def readCommentsFile(commentsFile):
@@ -508,11 +605,11 @@ def parseCommands():
     shortops = "cud"
     longopts = ["clone", "upload", "download", "changes", "fetch", "compare-to-remote=", 'listsubmodules', #main commands
                 "folder=", "comments=", "commentsfile=", "remote=", "donothing", "all", "main",
-                "submodule="]
+                "submodule=", "okToPush", "fixDivergedBranch"]
     try:
         options, remainder = getopt.getopt(argv, shortops, longopts)
     except:
-        print_to_stdout("Error")
+        print_to_stdout("\nError:")
         print_to_stdout(traceback.format_exc())
         sys.exit(1)
 
@@ -545,6 +642,10 @@ def parseCommands():
             gitCompare(options_frmt.copy())
         elif opt in ['--listsubmodules']:
             gitListSubmodules(options_frmt.copy())
+        elif opt in ['--okToPush']:
+            gitCheckPushability(options_frmt.copy())
+        # elif opt in ['--fixDivergedBranch']:
+        #     resetDivergedBranch(options_frmt.copy())
 
     sys.exit(0)
 
