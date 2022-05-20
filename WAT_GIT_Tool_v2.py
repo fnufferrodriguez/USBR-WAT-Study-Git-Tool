@@ -428,12 +428,19 @@ def gitCheckPushability(options):
         stats = repo.git.status(porcelain=True).split() #really only for submodules...
 
         if 'UU' in stats:
-            print_to_stdout('\nERROR: Conflicts found in the following:')
+            error_repos = []
             for ni, n in enumerate(stats):
                 if n == 'UU':
-                    print(f'\t{stats[ni+1]}')
+                    error_repo = stats[ni+1]
+                    if error_repo in options['--submodule']:
+                        error_repos.append(error_repo)
+                    # print(f'\t{stats[ni+1]}')
+            if len(error_repos) > 0:
+                print_to_stdout('\nERROR: Conflicts found in the following:')
+                for erepo in error_repos:
+                    print(f'\t{erepo}')
 
-            sys.exit(1)
+                sys.exit(1)
 
         allpendingcommits = gitCompare(options, comparisonType='commits', repo=repo, returnlist=True)
         if len(allpendingcommits) > 0:
