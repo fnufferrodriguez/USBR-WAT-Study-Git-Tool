@@ -444,7 +444,7 @@ def gitCheckPushability(options):
 
         allpendingcommits = gitCompare(options, comparisonType='commits', repo=repo, returnlist=True)
         if len(allpendingcommits) > 0:
-            print_to_stdout('\nERROR: Cannot push with pending commits.')
+            print_to_stdout('\nERROR: Cannot upload with pending commits.')
             sys.exit(1)
 
         print_to_stdout('\nOk to push!')
