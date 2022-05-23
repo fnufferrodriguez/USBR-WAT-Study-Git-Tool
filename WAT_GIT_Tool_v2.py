@@ -185,7 +185,8 @@ def gitDownload(options):
                         repo_submod.git.pull()
                         print_to_stdout('Download complete.')
                     except git.exc.GitCommandError:
-                        print_to_stdout('Error pulling submodule {0}'.format(submodule))
+                        print_to_stdout(traceback.format_exc())
+                        print_to_stdout('Error: Cannot download submodule {0}'.format(submodule))
             # if '--main' not in options.keys():
             #     gitCompare(options, repo=repo)
             #     changedlocals = getChangedFiles(repo)
