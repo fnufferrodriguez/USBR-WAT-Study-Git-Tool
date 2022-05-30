@@ -426,6 +426,9 @@ def gitCheckPushability(options):
         if not any(x in options.keys() for x in ['--all', '--main', '--submodule']):
             options['--main'] = ''
 
+        if 'main' not in options.keys():
+            options['--main'] = ''
+
         stats = repo.git.status(porcelain=True).split() #really only for submodules...
 
         if 'UU' in stats:
