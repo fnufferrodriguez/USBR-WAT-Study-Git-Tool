@@ -162,13 +162,20 @@ def gitDownload(options):
         if not any(x in options.keys() for x in ['--all', '--main', '--submodule']):
             options['--main'] = ''
 
+        failed_downloads = []
+
         if '--main' in options.keys():
             gitCompare(options, repo=repo)
             changedlocals = getChangedFiles(repo)
             printChangedFiles(changedlocals, "The following files will be overwritten:")
-            repo.git.reset('--hard')
-            repo.git.pull()
-            print_to_stdout('Download complete.')
+            try:
+                repo.git.reset('--hard')
+                repo.git.pull()
+                print_to_stdout('Download complete.')
+            except:
+                print_to_stdout(traceback.format_exc())
+                print_to_stdout('Error: Cannot download Main')
+                failed_downloads.append('Main')
         if '--submodule' in options.keys():
             if isinstance(options['--submodule'], str):
                 options['--submodule'] = [options['--submodule']]
@@ -184,16 +191,17 @@ def gitDownload(options):
                         repo_submod.git.reset('--hard')
                         repo_submod.git.pull()
                         print_to_stdout('Download complete.')
-                    except git.exc.GitCommandError:
+                    # except git.exc.GitCommandError:
+                    except:
                         print_to_stdout(traceback.format_exc())
                         print_to_stdout('Error: Cannot download submodule {0}'.format(submodule))
-            # if '--main' not in options.keys():
-            #     gitCompare(options, repo=repo)
-            #     changedlocals = getChangedFiles(repo)
-            #     printChangedFiles(changedlocals, "The following files will be overwritten:")
-            #     repo.git.reset('--hard')
-            #     repo.git.pull()
-            #     print_to_stdout('Download complete.')
+                        failed_downloads.append(submodule)
+
+        if len(failed_downloads):
+            print_to_stdout('ERROR: Failed to download the following:')
+            for fd in failed_downloads:
+                print_to_stdout(f'  {fd}')
+            sys.exit(1)
 
     else:
         print_to_stdout('Do nothing mode engaged.')
@@ -576,7 +584,7 @@ def connect2GITRepo(repo_path):
     except git.exc.GitError:
         print_to_stdout('\nERROR: Invalid GIT Repo directory: {0}'.format(repo_path))
         sys.exit(1)
-    else:
+    except Exception:
         print_to_stdout(f'\nERROR: Unknown error connecting to GIT Repo directory: {repo_path}')
         sys.exit(1)
 
