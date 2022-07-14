@@ -17,6 +17,8 @@ import git
 import getopt
 import traceback
 
+VERSION_NUMBER = '3.0'
+
 def gitClone(options):
     default_URL = r'https://gitlab.rmanet.app/RMA/usbr-water-quality/UpperSac-Submodules/uppersac.git' #default
     if "--folder" not in options.keys():
@@ -147,7 +149,7 @@ def gitDownload(options):
     print_to_stdout('USER HAS SELECTED:')
     print_to_stdout('folder:', folder)
 
-    if '--donothing' not in options.keys():
+    if '--donothing' not in options.keys(): #git restore path-to-your/submodule-name --recurse-submodules
         repo = connect2GITRepo(folder)
 
         if '--all' in options.keys():
@@ -181,6 +183,11 @@ def gitDownload(options):
                 options['--submodule'] = [options['--submodule']]
             for submodule in repo.submodules:
                 if submodule.name in options['--submodule']:
+                    if not os.path.exists(os.path.join(folder, submodule.path, '.git')):
+                        print_to_stdout(f'Folder for submodule {submodule.name} not found.')
+                        continue
+                        # print_to_stdout(f'Folder for submodule {submodule.name} not found. Restoring.')
+                        # gitRestore({'--folder': folder, '--submodule': submodule.name})
                     print_to_stdout('\nDownloading Submodule:', submodule.name)
                     repo_submod = submodule.module()
                     gitCompare(options, repo=repo, subrepo=submodule.name)
@@ -352,17 +359,20 @@ def gitCompare(options, comparisonType='files', repo=None, subrepo=None, returnl
                 if subrepo != None and submodule.name != subrepo:
                     continue
                 if submodule.name in options['--submodule']:
-                    repo_submod = submodule.module()
+                    try:
+                        repo_submod = submodule.module()
 
-                    if comparisonType.lower() == 'files':
-                        changedFiles = compareFiles(repo_submod)
-                        for file in changedFiles:
-                            all_changed_files.append('{0}/{1}'.format(submodule, file))
+                        if comparisonType.lower() == 'files':
+                            changedFiles = compareFiles(repo_submod)
+                            for file in changedFiles:
+                                all_changed_files.append('{0}/{1}'.format(submodule, file))
 
-                    elif comparisonType.lower() == 'commits':
-                        differentCommits = compareCommits(repo_submod)
-                        for commit in differentCommits:
-                            all_changed_commits.append('{0}: {1}'.format(submodule, commit))
+                        elif comparisonType.lower() == 'commits':
+                            differentCommits = compareCommits(repo_submod)
+                            for commit in differentCommits:
+                                all_changed_commits.append('{0}: {1}'.format(submodule, commit))
+                    except:
+                        print_to_stdout(f'ERROR: cannot compare {submodule.name}')
 
         if comparisonType.lower() == 'files':
             if len(all_changed_files) > 0:
@@ -512,6 +522,41 @@ def gitCheckPushability(options):
 #                     repo_submod.git.checkout('main')
 
 
+def gitRestore(options):
+    if "--folder" not in options.keys():
+        print_to_stdout("\nERROR: --folder not included in options.")
+        sys.exit(1)
+
+    for opt in options.keys():
+        if opt == '--folder':
+            folder = options[opt]
+
+    if not os.path.exists(folder):
+        print_to_stdout(f'\nERROR: Specified Git folder {folder} does not exist.')
+        sys.exit(1)
+
+    if '--donothing' not in options.keys():
+        repo = connect2GITRepo(folder)
+
+        if not any(x in options.keys() for x in ['--all', '--main', '--submodule']):
+            options['--main'] = ''
+
+        if '--all' in options.keys():
+            repo.git.restore(folder, recurse_submodules=True)
+            for submodule in repo.submodules:
+                repo_submod = submodule.module()
+                repo_submod.git.checkout('main')
+
+        if '--main' in options.keys():
+            repo.git.restore(folder, recurse_submodules=False)
+
+        if '--submodule' in options.keys():
+            for submodule in repo.submodules:
+                if submodule.name in options['--submodule']:
+                    submod_folder = os.path.join(folder, submodule.path)
+                    repo.git.restore(submod_folder, recurse_submodules=True)
+                    submodule.module().git.checkout('main')
+
 def compareCommits(repo):
     remoteBranch = getCurrentBranchRemote(repo)
     if remoteBranch is None:
@@ -620,10 +665,11 @@ def print_to_stdout(*a):
     print(*a, file=sys.stdout)
 
 def parseCommands():
+    print_to_stdout(f'GIT WAT TOOL v{VERSION_NUMBER}')
     argv = sys.argv[1:]
     shortops = "cud"
     longopts = ["clone", "upload", "download", "changes", "fetch", "compare-to-remote=", 'listsubmodules', #main commands
-                "folder=", "comments=", "commentsfile=", "remote=", "donothing", "all", "main",
+                "folder=", "comments=", "commentsfile=", "remote=", "donothing", "all", "main", "restore",
                 "submodule=", "okToPush", "fixDivergedBranch"]
     try:
         options, remainder = getopt.getopt(argv, shortops, longopts)
@@ -663,6 +709,8 @@ def parseCommands():
             gitListSubmodules(options_frmt.copy())
         elif opt in ['--okToPush']:
             gitCheckPushability(options_frmt.copy())
+        elif opt in ['--restore']:
+            gitRestore(options_frmt.copy())
         # elif opt in ['--fixDivergedBranch']:
         #     resetDivergedBranch(options_frmt.copy())
 
