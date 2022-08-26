@@ -17,7 +17,7 @@ import git
 import getopt
 import traceback
 
-VERSION_NUMBER = '3.2'
+VERSION_NUMBER = '3.2.1'
 
 def gitClone(options):
     default_URL = r'https://gitlab.rmanet.app/RMA/usbr-water-quality/UpperSac-Submodules/uppersac.git' #default
@@ -478,6 +478,11 @@ def gitCheckPullability(options):
         if not any(x in options.keys() for x in ['--all', '--main', '--submodule']):
             options['--main'] = ''
 
+        if '--softoverwrite' in options.keys():
+            softoverwrite = True
+        else:
+            softoverwrite = False
+
         isdetached = False
         if '--main' in options.keys():
             if repo.head.is_detached:
@@ -497,9 +502,12 @@ def gitCheckPullability(options):
         if isdetached:
             sys.exit(1)
 
+        all_changed_files = []
         if '--main' in options.keys():
             print_to_stdout('\nChecking main study directory for potential merge conflicts..')
-            compareLocalAndServerFiles(repo)
+            changedfiles = compareLocalAndServerFiles(repo, returnlist=True)
+            for filen in changedfiles:
+                all_changed_files.append(filen)
         if '--submodule' in options.keys():
             if isinstance(options['--submodule'], str):
                 options['--submodule'] = [options['--submodule']]
@@ -507,7 +515,16 @@ def gitCheckPullability(options):
                 if submodule.name in options['--submodule']:
                     repo_submod = submodule.module()
                     print_to_stdout(f'\nChecking Submodule {submodule.name} for potential merge conflicts..')
-                    compareLocalAndServerFiles(repo_submod)
+                    changedfiles = compareLocalAndServerFiles(repo_submod, returnlist=True)
+                    for filen in changedfiles:
+                        all_changed_files.append(f'{submodule.name}/{filen}')
+
+        if softoverwrite:
+            if len(all_changed_files) > 0:
+                print_to_stdout('ERROR: Cannot perform softoverwrite with change(s) in the following local file(s) and on server:')
+                for filen in all_changed_files:
+                    print(f'\t{filen}')
+                sys.exit(1)
 
         print_to_stdout('Ok to download!')
     else:
@@ -559,7 +576,7 @@ def gitResetHead(options):
 
         print_to_stdout('Reset complete.')
 
-def compareLocalAndServerFiles(repo):
+def compareLocalAndServerFiles(repo, returnlist=False):
     # allpendingfiles = gitCompare(options, comparisonType='files', repo=repo, returnlist=True, printpending=False)
     changedServerFiles = compareFiles(repo)
     changedLocalfiles = getChangedFiles(repo)
@@ -580,6 +597,8 @@ def compareLocalAndServerFiles(repo):
     else:
         print_to_stdout('No files changed on local file system but not server.')
 
+    if returnlist:
+        return tobeclobbered
 
 def gitRestore(options):
 
