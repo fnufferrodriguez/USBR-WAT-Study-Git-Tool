@@ -17,15 +17,20 @@ import git
 import getopt
 import traceback
 
-VERSION_NUMBER = '3.2.2'
+VERSION_NUMBER = '3.2.3'
 
 def gitClone(options):
-    default_URL = r'https://gitlab.rmanet.app/RMA/usbr-water-quality/UpperSac-Submodules/uppersac.git' #default
     if "--folder" not in options.keys():
         print_to_stdout("\nERROR: --folder not included in input.")
         sys.exit(1)
-    print_to_stdout("Made it to clone")
-    remote = default_URL
+
+    if '--remote' not in options.keys():
+        print_to_stdout('ERROR: remote GIT url not defined.')
+        print_to_stdout('Enter URL and try again.')
+        sys.exit(1)
+
+    print_to_stdout("Starting Clone.")
+
     for opt in options.keys():
         if opt == '--folder':
            folder = options[opt]
