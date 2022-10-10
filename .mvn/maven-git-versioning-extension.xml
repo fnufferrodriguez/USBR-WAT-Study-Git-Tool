@@ -1,0 +1,29 @@
+<configuration xmlns="https://github.com/qoomon/maven-git-versioning-extension"
+               xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+               xsi:schemaLocation="https://github.com/qoomon/maven-git-versioning-extension https://qoomon.github.io/maven-git-versioning-extension/configuration-7.0.0.xsd">
+
+    <refs>
+        <ref type="branch">
+            <pattern><![CDATA[(?<version>^[a-zA-Z].+)]]></pattern>
+            <version>${ref.version}-SNAPSHOT</version>
+        </ref>
+
+        <ref type="tag">
+            <pattern><![CDATA[(?<version>\d+\.\d+\.\d+(?:-[a-zA-Z0-9]*)?)]]></pattern>
+            <version>${ref.version}</version>
+        </ref>
+    </refs>
+
+    <!-- optional fallback configuration in case of no matching ref configuration-->
+    <rev>
+        <version>${commit}</version>
+    </rev>
+
+    <relatedProjects>
+        <project>
+            <groupId>usbr.wat.plugins</groupId>
+            <artifactId>usbr-wat-plugins-parent</artifactId>
+        </project>
+    </relatedProjects>
+
+</configuration>

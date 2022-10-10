@@ -20,14 +20,11 @@ build-python-code:
     - pyinstaller --onefile WAT_GIT_Tool_v2.py
 
 deploy-python-code:
-  image: peso.rmanet.com:4567/rma/devops/docker-java-build-image:jdk-8
+  image: maven:3.8.6-eclipse-temurin-8
   stage: deploy
   script:
-  - mvn deploy
+  - mvn deploy -s maven_ci_settings.xml
   dependencies:
   - build-python-code
   tags:
     - docker
-  only:
-    refs:
-      - master

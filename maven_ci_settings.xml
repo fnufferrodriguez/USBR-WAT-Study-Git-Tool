@@ -1,0 +1,21 @@
+<settings xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0                       http://maven.apache.org/xsd/settings-1.0.0.xsd">
+    <servers>
+        <server>
+            <id>rma-nexus-usbr-component-releases</id>
+            <username>${env.RMA_NEXUS_USERNAME}</username>
+            <password>${env.RMA_NEXUS_PASSWORD}</password>
+        </server>
+        <server>
+            <id>rma-nexus-usbr-component-snapshots</id>
+            <username>${env.RMA_NEXUS_USERNAME}</username>
+            <password>${env.RMA_NEXUS_PASSWORD}</password>
+        </server>
+        <server>
+            <id>rma-internal</id>
+            <username>${env.RMA_NEXUS_USERNAME}</username>
+            <password>${env.RMA_NEXUS_PASSWORD}</password>
+        </server>
+    </servers>
+</settings>
+
