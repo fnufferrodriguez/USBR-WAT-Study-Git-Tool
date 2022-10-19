@@ -17,7 +17,7 @@ import git
 import getopt
 import traceback
 
-VERSION_NUMBER = '3.2.3'
+VERSION_NUMBER = '3.2.4'
 
 def gitClone(options):
     if "--folder" not in options.keys():
@@ -844,4 +844,8 @@ def parseCommands():
     sys.exit(0)
 
 if __name__ == "__main__":
-    parseCommands()
+    if '--version' in sys.argv:
+        print_to_stdout(VERSION_NUMBER)
+        sys.exit(0)
+    else:
+        parseCommands()
