@@ -14,10 +14,13 @@ Created on 2/10/2022
 
 import sys, os
 import git
+import gitlab
 import getopt
 import traceback
+from glob import glob
+import default_GitIgnores
 
-VERSION_NUMBER = '3.2.5'
+VERSION_NUMBER = '3.3.0'
 
 def gitClone(options):
     if "--folder" not in options.keys():
@@ -293,6 +296,203 @@ def gitFetch(options):
                     repo_submod.git.fetch()
 
     print_to_stdout('Fetch complete.')
+
+def gitCreateRepo(options):
+    #needed flags:
+    #source folder: '--folder' r"Z:\WAT\TEST_BUILD"
+    #New Repo name: '--newreponame' "Test_Build_2"
+
+    if '--folder' not in options.keys():
+        print_to_stdout('No Source Folder defined (--folder)')
+        sys.exit(1)
+    else:
+        sourcefolder = options['--folder']
+
+    if '--newreponame' not in options.keys():
+        print_to_stdout('No Name for New Repo defined (--newreponame)')
+        sys.exit(1)
+    else:
+        newreponame = options['--newreponame']
+
+    if '--remotelocation' not in options.keys():
+        print_to_stdout('No location for Remote defined (--remotelocation)')
+        sys.exit(1)
+    else:
+        remotelocation = options['--remotelocation']
+
+    if '--parenturl' not in options.keys():
+        print_to_stdout('No location for Parent URL defined (--parenturl)')
+        sys.exit(1)
+    else:
+        parenturl = options['--parenturl']
+
+    ################ GIT INFO #################
+    # parent = r'https://gitlab.rmanet.app/'
+    # parent_urlpath = "RMA/usbr-water-quality/wtmp-development-study/scott-test-realm"
+    token = 'glpat-_GppFhUUibK4z_bW-x9B' #??????
+    ############################################
+
+    if '--donothing' in options.keys():
+        print_to_stdout("Do nothing mode engaged.")
+    else:
+        if os.path.exists(os.path.join(sourcefolder, '.git')):
+            gitForkRepo(sourcefolder, newreponame, parenturl, remotelocation, token)
+        else:
+            gitNewCreateRepo(sourcefolder, newreponame, parenturl, remotelocation, token)
+
+def gitForkRepo(sourcefolder, newreponame, parent, parent_urlpath, token):
+    gl = gitlab.Gitlab(parent, private_token=token)
+    parent_group = gl.groups.get(parent_urlpath) #WHERE WE WANT TO GET TO
+    repo = connect2GITRepo(sourcefolder)
+    url = repo.remote("origin").url
+    old_repo_group_name = url.split(parent)[-1].split('/')[-2] #always second to last, infront of the {file.git} file
+
+    # get group
+    old_repo_group = None
+    for group in parent_group.descendant_groups.list():
+        if group.name.lower() == old_repo_group_name.lower():
+            old_repo_group = gl.groups.get(group.id)
+            break
+    if old_repo_group == None:
+        print_to_stdout(f'Unable to find prior group {old_repo_group_name}')
+        print_to_stdout(f'Delete all .git files in study and try again') #todo: this
+        # gitRemoveRepoConnection(sourcefolder) #access denied?
+        sys.exit(1)
+        # gitNewCreateRepo(sourcefolder, newreponame, parent, parent_urlpath, token)
+        return
+
+    #create new group
+    try:
+        new_subgroup = gl.groups.create({'name': newreponame, 'path': newreponame, 'parent_id': parent_group.id})
+    except gitlab.exceptions.GitlabCreateError:
+        new_subgroup = gl.groups.get(f'{parent_urlpath}/{newreponame}')
+        print_to_stdout(f'Group {newreponame} already exists.')
+
+    ### Fork projects
+    old_repo_submodules = [n.name for n in repo.submodules]
+    for project in old_repo_group.projects.list():
+        project_id = project.id
+        current_project = gl.projects.get(project_id)
+        try:
+            fork = current_project.forks.create({'namespace_id': new_subgroup.id, 'name': current_project.name, 'path': current_project.name})
+            current_project.delete_fork_relation()
+
+            #detect main
+            if fork.name not in old_repo_submodules:
+                #main repo!
+                repo.remote('origin').set_url(fork.web_url)
+            else:
+                for submod in repo.submodules:
+                    if submod.name == fork.name:
+                        subrepo = submod.module()
+                subrepo.remote('origin').set_url(fork.web_url)
+
+        except gitlab.exceptions.GitlabCreateError:
+            print(f'project {project.name} already exists.')
+
+    #modify gitmodules
+    gitmodules_file = os.path.join(sourcefolder, '.gitmodules')
+
+    if os.path.exists(gitmodules_file):
+        with open(gitmodules_file, 'w') as gmt:
+            for project in new_subgroup.projects.list():
+                if project.name in old_repo_submodules:
+                    project_url = project.web_url.split('.git')[0]
+                    gmt.write(f'[submodule "{project.name}"]\n')
+                    gmt.write(f'	path = {project.name}\n')
+                    gmt.write(f'	url = {project_url}\n')
+
+    for project in new_subgroup.projects.list():
+        if project.name not in old_repo_submodules:
+            #main
+            default_GitIgnores.getDefaultGitIgnore('main', sourcefolder)
+        else:
+            default_GitIgnores.getDefaultGitIgnore(project.name, os.path.join(sourcefolder, project.name))
+
+    #push
+    comments = f'Copy from {old_repo_group_name}'
+    push_options = {'--comments': comments, '--all': '', 'repo': repo}
+    gitUpload(push_options)
+
+def gitNewCreateRepo(sourcefolder, newreponame, parent_url, parent_urlpath, token):
+    submodules = ['shared', 'rss', 'reports', 'ras', 'cequal-w2', '5q', 'scripts']
+    gl = gitlab.Gitlab(parent_url, private_token=token)
+
+    parent_group = gl.groups.get(parent_urlpath)
+
+    #create new group
+    try:
+        new_group = gl.groups.create({'name': newreponame, 'path': newreponame, 'parent_id': parent_group.id})
+    except gitlab.exceptions.GitlabCreateError:
+        if newreponame in [n.path for n in gl.groups.list()]:
+            print_to_stdout(f'New GIT repo {newreponame} already exists.')
+            sys.exit(1)
+        else:
+            print_to_stdout('Unknown Error on new repo creation')
+            print_to_stdout(traceback.format_exc())
+            sys.exit(1)
+
+    ### Create empty project in Subgroup for each subgroup
+    for submod in submodules:
+        try:
+            project = gl.projects.create({'name': submod, 'namespace_id': new_group.id})
+        except:
+            print_to_stdout(f'Unknown Error on new subrepo {submod} creation')
+            print_to_stdout(traceback.format_exc())
+            sys.exit(1)
+
+    ### Create empty project for main
+    try:
+        project = gl.projects.create({'name': newreponame, 'namespace_id': new_group.id}) #main directory
+    except:
+        print_to_stdout(f'Unknown Error on new subrepo {submod} creation')
+        print_to_stdout(traceback.format_exc())
+        sys.exit(1)
+
+    ### Create subrepos for each subrepo
+    for submod in submodules:
+        print_to_stdout('Uploading', submod)
+        submod_path = os.path.join(sourcefolder, submod)
+        r = git.Repo.init(submod_path)
+        default_GitIgnores.getDefaultGitIgnore(submod, os.path.join(submod_path))
+        r.git.add('--all')
+        r.index.commit("Initial Subrepository Commit")
+        r.git.switch('-Cmain')
+        current_submod = gl.projects.get(f'{parent_urlpath}/{newreponame}/{submod}')
+        submod_url = current_submod.web_url + '.git'
+        remote = r.create_remote('origin', url=submod_url)
+        r.git.push('origin', '-u', 'main')
+        print_to_stdout(f'{submod} upload complete!')
+
+    ### Initialize the Main study folder
+    print_to_stdout('Uploading Main Study')
+    main_r = git.Repo.init(sourcefolder)
+    default_GitIgnores.getDefaultGitIgnore('main', sourcefolder)
+    main_r.git.add('--all')
+    for submod in submodules:
+        try:
+            main_r.index.remove(submod, True, f=True, r=True, cached=True)
+        except:
+            # continue #usually a case where the file wastn a submod before
+            print_to_stdout(f'Failed to remove {submod}')
+            print_to_stdout(traceback.format_exc())
+
+    main_r.git.commit("-m Initial Parent Repository Commit")
+    main_r.git.switch('-Cmain')
+    print_to_stdout('Study upload complete!')
+
+    ### Add submodules to main study folder
+    for submod in submodules:
+        print_to_stdout(f'Configuring Submodule {submod}')
+        submod_proj = gl.projects.get(f'{parent_urlpath}/{newreponame}/{submod}')
+        submod_url = submod_proj.web_url + '.git'
+        main_r.git.submodule('add', submod_url)
+
+    main_r.git.commit("-m Add Submodules")
+    main_repo = gl.projects.get(f'{parent_urlpath}/{newreponame}/{newreponame}')
+    main_url = main_repo.web_url + '.git'
+    remote = main_r.create_remote('origin', url=main_url)
+    main_r.git.push('origin', '-u', 'main')
 
 def gitCompare(options, comparisonType='files', mainonly=False, subrepo=None, returnlist=False, printpending=True):
 
@@ -581,6 +781,13 @@ def gitResetHead(options):
 
         print_to_stdout('Reset complete.')
 
+def gitRemoveRepoConnection(sourcefolder):
+    gitfiles = glob(os.path.join(sourcefolder, "\*\.git"), recursive=True)
+    for gitfile in gitfiles:
+        os.remove(gitfile)
+    if os.path.exists(os.path.join(sourcefolder, ".git")):
+        os.remove(os.path.join(sourcefolder, ".git"))
+
 def compareLocalAndServerFiles(repo, returnlist=False):
     # allpendingfiles = gitCompare(options, comparisonType='files', repo=repo, returnlist=True, printpending=False)
     changedServerFiles = compareFiles(repo)
@@ -805,7 +1012,8 @@ def parseCommands():
     shortops = ""
     longopts = ["clone", "upload", "download", "changes", "fetch", "compare-to-remote=", 'listsubmodules', #main commands
                 "folder=", "comments=", "commentsfile=", "remote=", "donothing", "all", "main", "restore",
-                "submodule=", "okToPush", "okToPull", "fixDivergedBranch", "softoverwrite", "diff", "file="]
+                "submodule=", "okToPush", "okToPull", "fixDivergedBranch", "createrepo", "softoverwrite", "diff",
+                "file=", "newreponame=", "remotelocation=", "parenturl="]
     try:
         options, remainder = getopt.getopt(argv, shortops, longopts)
     except:
@@ -827,7 +1035,7 @@ def parseCommands():
             else:
                 options_frmt[opt].append(arg)
 
-    if '--clone' not in options_frmt.keys():
+    if '--clone' not in options_frmt.keys() and '--createrepo' not in options_frmt.keys():
         options_frmt = setUpRepo(options_frmt)
 
     for opt in options_frmt.keys():
@@ -853,6 +1061,8 @@ def parseCommands():
             gitCheckPullability(options_frmt.copy())
         elif opt in ['--diff']:
             gitDiffFile(options_frmt.copy())
+        elif opt in ['--createrepo']:
+            gitCreateRepo(options_frmt.copy())
 
     sys.exit(0)
 
