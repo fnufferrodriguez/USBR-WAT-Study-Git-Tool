@@ -13,6 +13,7 @@ Created on 2/10/2022
 '''
 
 import sys, os
+import time
 import git
 import gitlab
 import getopt
@@ -22,7 +23,7 @@ import shutil
 import stat
 import default_GitIgnores
 
-VERSION_NUMBER = '3.3.2'
+VERSION_NUMBER = '3.3.3'
 
 def gitClone(options):
     if "--folder" not in options.keys():
@@ -340,13 +341,21 @@ def gitCreateRepo(options):
 
     if '--donothing' in options.keys():
         print_to_stdout("Do nothing mode engaged.")
+    elif '--nohistory' in options.keys():
+        success = gitRemoveRepoConnection(sourcefolder) #access denied?
+        if success:
+            gitNewCreateRepo(sourcefolder, newreponame, parenturl, remotelocation, description, token)
+        else:
+            print_to_stdout("Unable to create new repo.")
+            print_to_stdout(traceback.format_exc())
+            sys.exit(1)
     else:
         if os.path.exists(os.path.join(sourcefolder, '.git')):
             gitForkRepo(sourcefolder, newreponame, parenturl, remotelocation, description, token)
         else:
             gitNewCreateRepo(sourcefolder, newreponame, parenturl, remotelocation, description, token)
 
-def gitForkRepo(sourcefolder, newreponame, parent, parent_urlpath, description, token):
+def gitForkRepo(sourcefolder, newreponame, parent, newrepo_urlpath, description, token):
     gl = gitlab.Gitlab(parent, private_token=token)
     try:
         gl.auth()
@@ -354,7 +363,6 @@ def gitForkRepo(sourcefolder, newreponame, parent, parent_urlpath, description, 
         print_to_stdout("Invalid token! Unable to log into server.")
         sys.exit(1)
 
-    parent_group = gl.groups.get(parent_urlpath) #WHERE WE WANT TO GET TO
     repo = connect2GITRepo(sourcefolder)
     url = repo.remote("origin").url
     if url.endswith('.git'):
@@ -362,18 +370,17 @@ def gitForkRepo(sourcefolder, newreponame, parent, parent_urlpath, description, 
     else:
         old_repo_group_name = url.split(parent)[-1].split('/')[-1] #if no .git then its the last.
 
-    # get group
-    old_repo_group = None
-    for group in parent_group.descendant_groups.list():
-        if group.name.lower() == old_repo_group_name.lower():
-            old_repo_group = gl.groups.get(group.id)
-            break
-    if old_repo_group == None:
+    old_repo_group_urlpath = '/'.join(url.split(parent)[-1].split('/')[1:-1])
+
+    try:
+        old_repo_group = gl.groups.get(old_repo_group_urlpath) #WHERE WE WANT TO GET TO
+    except gitlab.exceptions.GitlabGetError:
         print_to_stdout(f'Unable to find prior group {old_repo_group_name} on GIT server {parent}')
+        print_to_stdout('Lost connection to now non-existing GIT repo. Resetting repo...')
         repo.close()
         success = gitRemoveRepoConnection(sourcefolder) #access denied?
         if success:
-            gitNewCreateRepo(sourcefolder, newreponame, parent, parent_urlpath, description, token)
+            gitNewCreateRepo(sourcefolder, newreponame, parent, newrepo_urlpath, description, token)
         else:
             print_to_stdout("Unable to create new repo.")
             print_to_stdout(traceback.format_exc())
@@ -381,12 +388,13 @@ def gitForkRepo(sourcefolder, newreponame, parent, parent_urlpath, description, 
 
         return
 
+    parent_group = gl.groups.get(newrepo_urlpath) #WHERE WE WANT TO GET TO
+
     #create new group
     try:
         new_subgroup = gl.groups.create({'name': newreponame, 'path': newreponame, 'parent_id': parent_group.id,
                                          'description': description})
     except gitlab.exceptions.GitlabCreateError:
-        # new_subgroup = gl.groups.get(f'{parent_urlpath}/{newreponame}')
         if newreponame in [n.path for n in gl.groups.list()]:
             print_to_stdout(f'New GIT repo {newreponame} already exists.')
             sys.exit(1)
@@ -400,6 +408,7 @@ def gitForkRepo(sourcefolder, newreponame, parent, parent_urlpath, description, 
     for project in old_repo_group.projects.list():
         project_id = project.id
         current_project = gl.projects.get(project_id)
+
         try:
             fork = current_project.forks.create({'namespace_id': new_subgroup.id, 'name': current_project.name,
                                                  'path': current_project.name})
@@ -413,10 +422,21 @@ def gitForkRepo(sourcefolder, newreponame, parent, parent_urlpath, description, 
                 for submod in repo.submodules:
                     if submod.name == fork.name:
                         subrepo = submod.module()
+                        break
                 subrepo.remote('origin').set_url(fork.web_url)
 
+            num_attempts = 1
+            max_attempts = 5
+            while num_attempts <= max_attempts:
+                if gl.projects.get(fork.id).empty_repo and not current_project.empty_repo:
+                    print_to_stdout(f'Waiting for GIT Repo {fork.name} to refresh. Attempt: {num_attempts}')
+                    time.sleep(3)
+                    num_attempts += 1
+                else:
+                    break
+
         except gitlab.exceptions.GitlabCreateError:
-            print(f'project {project.name} already exists.')
+            print_to_stdout(f'project {project.name} already exists.')
 
     #modify gitmodules
     gitmodules_file = os.path.join(sourcefolder, '.gitmodules')
@@ -442,7 +462,7 @@ def gitForkRepo(sourcefolder, newreponame, parent, parent_urlpath, description, 
     push_options = {'--comments': comments, '--all': '', 'repo': repo}
     gitUpload(push_options)
 
-def gitNewCreateRepo(sourcefolder, newreponame, parent_url, parent_urlpath, description, token):
+def gitNewCreateRepo(sourcefolder, newreponame, parent_url, newrepo_urlpath, description, token):
     submodules = ['shared', 'rss', 'reports', 'ras', 'cequal-w2', '5q', 'scripts']
     gl = gitlab.Gitlab(parent_url, private_token=token)
     try:
@@ -450,7 +470,9 @@ def gitNewCreateRepo(sourcefolder, newreponame, parent_url, parent_urlpath, desc
     except gitlab.exceptions.GitlabAuthenticationError:
         print_to_stdout("Invalid token! Unable to log into server.")
         sys.exit(1)
-    parent_group = gl.groups.get(parent_urlpath)
+
+    #find new group
+    parent_group = gl.groups.get(newrepo_urlpath)
 
     #create new group
     try:
@@ -491,7 +513,7 @@ def gitNewCreateRepo(sourcefolder, newreponame, parent_url, parent_urlpath, desc
         r.git.add('--all')
         r.index.commit("Initial Subrepository Commit")
         r.git.switch('-Cmain')
-        current_submod = gl.projects.get(f'{parent_urlpath}/{newreponame}/{submod}')
+        current_submod = gl.projects.get(f'{newrepo_urlpath}/{newreponame}/{submod}')
         submod_url = current_submod.web_url + '.git'
         remote = r.create_remote('origin', url=submod_url)
         r.git.push('origin', '-u', 'main')
@@ -517,12 +539,12 @@ def gitNewCreateRepo(sourcefolder, newreponame, parent_url, parent_urlpath, desc
     ### Add submodules to main study folder
     for submod in submodules:
         print_to_stdout(f'Configuring Submodule {submod}')
-        submod_proj = gl.projects.get(f'{parent_urlpath}/{newreponame}/{submod}')
+        submod_proj = gl.projects.get(f'{newrepo_urlpath}/{newreponame}/{submod}')
         submod_url = submod_proj.web_url + '.git'
         main_r.git.submodule('add', submod_url)
 
     main_r.git.commit("-m Add Submodules")
-    main_repo = gl.projects.get(f'{parent_urlpath}/{newreponame}/{newreponame}')
+    main_repo = gl.projects.get(f'{newrepo_urlpath}/{newreponame}/{newreponame}')
     main_url = main_repo.web_url + '.git'
     remote = main_r.create_remote('origin', url=main_url)
     main_r.git.push('origin', '-u', 'main')
@@ -816,7 +838,6 @@ def gitResetHead(options):
 
 def gitRemoveRepoConnection(sourcefolder):
     gitfiles = glob(os.path.join(sourcefolder, "*\.git"), recursive=True)
-    print_to_stdout('Lost connection to now non-existing GIT repo. Resetting repo...')
     if os.path.exists(os.path.join(sourcefolder, ".git")):
         gitfiles.append(os.path.join(sourcefolder, ".git"))
     try:
@@ -1059,7 +1080,7 @@ def parseCommands():
     longopts = ["clone", "upload", "download", "changes", "fetch", "compare-to-remote=", 'listsubmodules', #main commands
                 "folder=", "comments=", "commentsfile=", "remote=", "donothing", "all", "main", "restore",
                 "submodule=", "okToPush", "okToPull", "fixDivergedBranch", "createrepo", "softoverwrite", "diff",
-                "file=", "newreponame=", "remotelocation=", "parenturl=", "description="]
+                "file=", "newreponame=", "remotelocation=", "parenturl=", "description=", "nohistory"]
     try:
         options, remainder = getopt.getopt(argv, shortops, longopts)
     except:
