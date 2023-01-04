@@ -23,7 +23,7 @@ import shutil
 import stat
 import default_GitIgnores
 
-VERSION_NUMBER = '3.3.4'
+VERSION_NUMBER = '3.3.5'
 
 def gitClone(options):
     if "--folder" not in options.keys():
@@ -336,7 +336,11 @@ def gitCreateRepo(options):
 
     ################ Token #################
     #Previous hard coded tokens are now invalid. Sorry hackers :)
-    token = input('Please enter token: ')
+    # sys.stdout.flush()
+    # token = input('Please enter token: ')
+    print_to_stdout("Please Enter token")
+    sys.stdout.flush()
+    token = input("")
     ############################################
 
     if '--donothing' in options.keys():
@@ -355,8 +359,8 @@ def gitCreateRepo(options):
         else:
             gitNewCreateRepo(sourcefolder, newreponame, parenturl, remotelocation, description, token)
 
-def gitForkRepo(sourcefolder, newreponame, parent, newrepo_urlpath, description, token):
-    gl = gitlab.Gitlab(parent, private_token=token)
+def gitForkRepo(sourcefolder, newreponame, parent_url, newrepo_urlpath, description, token):
+    gl = gitlab.Gitlab(parent_url, private_token=token)
     try:
         gl.auth()
     except gitlab.exceptions.GitlabAuthenticationError:
@@ -366,21 +370,21 @@ def gitForkRepo(sourcefolder, newreponame, parent, newrepo_urlpath, description,
     repo = connect2GITRepo(sourcefolder)
     url = repo.remote("origin").url
     if url.endswith('.git'):
-        old_repo_group_name = url.split(parent)[-1].split('/')[-2] #second to last before .git
+        old_repo_group_name = url.split(parent_url)[-1].split('/')[-2] #second to last before .git
     else:
-        old_repo_group_name = url.split(parent)[-1].split('/')[-1] #if no .git then its the last.
+        old_repo_group_name = url.split(parent_url)[-1].split('/')[-1] #if no .git then its the last.
 
-    old_repo_group_urlpath = '/'.join(url.split(parent)[-1].split('/')[1:-1])
+    old_repo_group_urlpath = '/'.join(url.split(parent_url)[-1].split('/')[1:-1])
 
     try:
         old_repo_group = gl.groups.get(old_repo_group_urlpath) #WHERE WE WANT TO GET TO
     except gitlab.exceptions.GitlabGetError:
-        print_to_stdout(f'Unable to find prior group {old_repo_group_name} on GIT server {parent}')
+        print_to_stdout(f'Unable to find prior group {old_repo_group_name} on GIT server {parent_url}')
         print_to_stdout('Lost connection to now non-existing GIT repo. Resetting repo...')
         repo.close()
         success = gitRemoveRepoConnection(sourcefolder) #access denied?
         if success:
-            gitNewCreateRepo(sourcefolder, newreponame, parent, newrepo_urlpath, description, token)
+            gitNewCreateRepo(sourcefolder, newreponame, parent_url, newrepo_urlpath, description, token)
         else:
             print_to_stdout("Unable to create new repo.")
             print_to_stdout(traceback.format_exc())
@@ -470,6 +474,8 @@ def gitForkRepo(sourcefolder, newreponame, parent, newrepo_urlpath, description,
     push_options = {'--comments': comments, '--all': '', 'repo': repo}
     gitUpload(push_options)
 
+    gitUpdateProtectedBranch(parent_url, f'{newrepo_urlpath}/{newreponame}', token)
+
 def gitNewCreateRepo(sourcefolder, newreponame, parent_url, newrepo_urlpath, description, token):
     submodules = ['shared', 'rss', 'reports', 'ras', 'cequal-w2', '5q', 'scripts']
     gl = gitlab.Gitlab(parent_url, private_token=token)
@@ -556,6 +562,22 @@ def gitNewCreateRepo(sourcefolder, newreponame, parent_url, newrepo_urlpath, des
     main_url = main_repo.web_url + '.git'
     remote = main_r.create_remote('origin', url=main_url)
     main_r.git.push('origin', '-u', 'main')
+
+    # repopath = os.path.join(newrepo_urlpath, newreponame)
+    gitUpdateProtectedBranch(parent_url, f'{newrepo_urlpath}/{newreponame}', token)
+
+def gitUpdateProtectedBranch(parent_url, repopath, token):
+    gl = gitlab.Gitlab(parent_url, private_token=token)
+    # parent_group = gl.groups.get('RMA/usbr-water-quality/wat-studies/wtmp-development-study/scott-test-realm/testsecurity')
+    parent_group = gl.groups.get(repopath)
+    for project in parent_group.projects.list():
+        subproj = gl.projects.get(project.id)
+        subproj.protectedbranches.get('main').delete()
+        protected_branch = subproj.protectedbranches.create({
+            'name': 'main',
+            'merge_access_level': gitlab.const.DEVELOPER_ACCESS,
+            'push_access_level': gitlab.const.DEVELOPER_ACCESS
+        })
 
 def gitCompare(options, comparisonType='files', mainonly=False, subrepo=None, returnlist=False, printpending=True):
 
