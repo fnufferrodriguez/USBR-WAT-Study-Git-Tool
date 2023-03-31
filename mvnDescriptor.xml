@@ -3,13 +3,13 @@
     <format>zip</format>
 </formats>
 
-<fileSets>
-    <fileSet>
-        <directory>dist</directory>
-        <includes>
-            <include>WAT_GIT_Tool_v2.exe</include>
-        </includes>
+<includeBaseDirectory>false</includeBaseDirectory>
+
+<files>
+    <file>
+        <source>dist/WAT_GIT_Tool_v2.exe</source>
+        <destName>tools/WAT_GIT_Tool_v2.exe</destName>
         <outputDirectory>.</outputDirectory>
-    </fileSet>
-</fileSets>
+    </file>
+</files>
 </assembly>
