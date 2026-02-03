@@ -1,0 +1,104 @@
+plugins {
+    id "base"
+    id "wtmp.deps-conventions"
+    id("com.pswidersk.python-plugin") version "3.1.10"
+    id "wtmp.versioning-conventions"
+    id "wtmp.publishing-conventions"
+}
+
+import com.pswidersk.gradle.python.VenvTask;
+
+allprojects {
+    group = 'usbr.wat.plugins'
+    version = versionConventions.getConventionVersion()
+}
+
+pythonPlugin {
+    pythonVersion = "3.11.0"
+    condaVersion = "25.3.1-0"
+    condaInstaller = "Miniforge3"
+    installDir = file(layout.buildDirectory.dir("python"))
+}
+
+def pythonSourceSet = objects.sourceDirectorySet("pythonSource", "pythonSource")
+pythonSourceSet.srcDir('src/main/python')
+
+tasks.register("installPyinstaller", VenvTask) {
+    dependsOn("envSetup")
+
+    outputs.upToDateWhen { !tasks.named("envSetup").get().didWork }
+
+    group = "build"
+
+    venvExec = "conda"
+    args = ["install", "pyinstaller"]
+
+    outputs.files([])
+}
+
+tasks.register("installPackages", VenvTask) {
+    dependsOn("installPyinstaller")
+
+    inputs.file("requirements.txt")
+    outputs.upToDateWhen { !tasks.named("installPyinstaller").get().didWork }
+
+    group = "build"
+
+    venvExec = "pip"
+    def envFile = layout.projectDirectory.file("requirements.txt").asFile.getAbsolutePath()
+    args = ["install", "-r", envFile]
+
+    outputs.files([])
+}
+
+tasks.register("buildInstaller", VenvTask) {
+    dependsOn("installPackages")
+
+    def pyinstallerDir = layout.buildDirectory.dir("pyinstaller")
+    doFirst {
+        pyinstallerDir.get().getAsFile().mkdirs()
+    }
+
+    group = "build"
+
+    outputs.upToDateWhen { !tasks.named("installPackages").get().didWork }
+
+    inputs.files(pythonSourceSet.getSourceDirectories().files)
+
+    venvExec = "pyinstaller"
+    args = ["--onefile", "${pythonSourceSet.sourceDirectories.asPath}/WAT_GIT_Tool_v2.py"]
+    workingDir = pyinstallerDir
+
+    outputs.file(pyinstallerDir.get().dir("dist").file("WAT_GIT_Tool_v2.exe"))
+}
+
+tasks.register("zipPython", Zip) {
+    dependsOn("buildInstaller")
+
+    group = "build"
+
+    from tasks.named("buildInstaller")
+    include '**/**.exe'
+    archiveBaseName = 'usbr-wtmp-git-tool'
+    includeEmptyDirs = false
+    destinationDirectory = file("$projectDir/build")
+
+    eachFile { fileCopyDetails ->
+        fileCopyDetails.setRelativePath(fileCopyDetails.getRelativePath().prepend("HEC-WAT/AutomatedReport"))
+    }
+}
+
+assemble.dependsOn(tasks.named("zipPython"))
+
+artifacts {
+    'default' tasks.named("zipPython")
+}
+
+publishing {
+    publications {
+            maven(MavenPublication) {
+                artifactId = "usbr-wtmp-git-tool"
+                artifact source: tasks.named("zipPython"), extension: 'zip'
+            }
+        }
+}
