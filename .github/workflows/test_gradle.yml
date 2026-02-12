@@ -29,3 +29,6 @@ jobs:
       - name: Build with Gradle wrapper command
         # this run will do the build with the wrapper already provided in the repository
         run: ./gradlew.bat build
+
+      - name: List everything
+        run: ls /build
