@@ -1,5 +1,8 @@
 name: Publish with Gradle
 
+permissions:
+  contents: read
+  packages: write  
 
 on:
   push:
