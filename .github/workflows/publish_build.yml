@@ -28,10 +28,16 @@ jobs:
           # Gradle needs java 17 or above
           java-version: '17'
           distribution: 'temurin'
-
+      - name: Diagnostics (env + repo URL)
+        shell: pwsh
+        run: |
+          Write-Host "Actor (from Actions): $env:GITHUB_ACTOR"
+          Write-Host "Token present? " + bool
+          Write-Host "build.gradle maven URL line(s):"
+          Select-String -Path build.gradle* -Pattern 'maven.pkg.github.com' | ForEach-Object { $_.Line }
       - name: Publish with Gradle wrapper command
         # this run will do the build with the wrapper already provided in the repository
-        run: ./gradlew.bat publish --debug
+        run: ./gradlew.bat publish --info --stacktrace
 
         # these are the credentials we will need
         env:
