@@ -1,4 +1,4 @@
-name: Manual Gradle Build
+name: Test Build with Gradle
 
 
 on:
@@ -18,7 +18,7 @@ jobs:
         # checkout action hash for version 6.0.2
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
-      - name: Set up JDK
+      - name: Set up Java
         # setup-java action hash for version 5.2.0
         uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654
         with:
@@ -29,12 +29,3 @@ jobs:
       - name: Build with Gradle wrapper command
         # this run will do the build with the wrapper already provided in the repository
         run: ./gradlew.bat build
-
-      - name: Upload build artifacts (full build folder)
-        # upload-artifact action hash for version 6.0.0
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
-        with:
-          name: gradle-build-artifacts
-          # this will keep everything from build folder, later we will want to update with only the things we need
-          path: |
-            **/build/**
