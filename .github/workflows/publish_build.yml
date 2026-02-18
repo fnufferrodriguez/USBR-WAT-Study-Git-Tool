@@ -28,7 +28,7 @@ jobs:
 
       - name: Publish with Gradle wrapper command
         # this run will do the build with the wrapper already provided in the repository
-        run: ./gradlew.bat publish
+        run: ./gradlew.bat publish --debug
 
         # these are the credentials we will need
         env:
