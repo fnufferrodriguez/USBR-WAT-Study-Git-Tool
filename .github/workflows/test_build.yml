@@ -1,4 +1,4 @@
-name: Manual Gradle Build
+name: Test Build with Gradle
 
 
 on:
