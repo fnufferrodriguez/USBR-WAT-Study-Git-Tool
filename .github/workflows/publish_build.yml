@@ -4,12 +4,8 @@ permissions:
   contents: read
   packages: write  
 
-on:
-  push:
-    branches: [ "main", "master" ]
-  pull_request:
-    branches: [ "main", "master" ]
-
+# this should only be triggered manually
+on: workflow_dispatch
 
 jobs:
   build:
