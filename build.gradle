@@ -101,4 +101,16 @@ publishing {
                 artifact source: tasks.named("zipPython"), extension: 'zip'
             }
         }
+
+    // publish to github packages
+    repositories {
+    maven {
+      name = "GitHubPackages"
+      url = uri("https://maven.pkg.github.com/DOI-BOR/USBR-WAT-Study-Git-Tool")
+            credentials {
+                username = System.getenv("GITHUB_ACTOR")
+                password = System.getenv("GITHUB_TOKEN")
+            }
+
+  }
 }
