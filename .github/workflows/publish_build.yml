@@ -32,7 +32,7 @@ jobs:
         shell: pwsh
         run: |
           Write-Host "Actor (from Actions): $env:GITHUB_ACTOR"
-          Write-Host "Token present? " + bool
+          Write-Host ("Token present? " + [bool]$env:GITHUB_TOKEN)
           Write-Host "build.gradle maven URL line(s):"
           Select-String -Path build.gradle* -Pattern 'maven.pkg.github.com' | ForEach-Object { $_.Line }
       - name: Publish with Gradle wrapper command
